@@ -18,7 +18,7 @@ app.use(bodyParser.json());
 // from a cloud data store
 const mockEvents = {
     events: [
-        { title: 'an event', id: 1, description: 'something really cool' },
+        { title: 'An Event', id: 1, description: 'Something really cool. You\'ll love it', event_date: 'December 22, 2020', event_time: '10:00PM' }
     ]
 };
 
@@ -72,9 +72,16 @@ app.get('/events', (req, res) => {
 
 app.post('/event', (req, res) => {
     // create a new object from the json data and add an id
+    var date = new Date(req.body.event_date);
+    var monthName = date.toLocaleString('default', { month: 'long'});
+    var dayNum = date.getDate();
+    var yearNum = date.getFullYear();
+
     const ev = { 
         title: req.body.title, 
         description: req.body.description,
+        event_date: monthName + " " + dayNum + ", " + yearNum,
+        event_time: new Date(req.body.event_date).toLocaleTimeString(),
         //id : mockEvents.events.length + 1
      }
 // this will create the Events collection if it does not exist
