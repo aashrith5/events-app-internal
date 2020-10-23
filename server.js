@@ -50,6 +50,31 @@ app.get('/version', (req, res) => {
 //    res.json(mockEvents);
 //});
 
+function getEvents(req, res) {
+    firestore.collection("Events").get()
+        .then((snapshot) => {
+            if (!snapshot.empty) {
+                const ret = { events: []};
+                snapshot.docs.forEach(element => {
+                    //get data
+                    const el = element.data();
+                    //get internal firestore id
+                    el._id = element.id;
+                    //add object to array
+                    ret.events.push(el);
+                }, this);
+                console.log(ret);
+                res.json(ret);
+            } else {
+                 res.json(mockEvents);
+            }
+        })
+        .catch((err) => {
+            console.error('Error getting events', err);
+            res.json(mockEvents);
+        });
+};
+
 app.get('/events', (req, res) => {
     getEvents(req, res);
 });
@@ -75,6 +100,7 @@ app.post('/event', (req, res) => {
     const ev = { 
         title: req.body.title, 
         description: req.body.description,
+        likes: 0,
         //id : mockEvents.events.length + 1
      }
 // this will create the Events collection if it does not exist
@@ -84,30 +110,62 @@ app.post('/event', (req, res) => {
 
 });
 
+// function used by both like and unlike. If increment = true, a like is added.
+// If increment is false, a like is removed.
+function changeLikes(req, res, id, increment) {
+    // return the existing objct
+    firestore.collection("Events").doc(id).get()
+        .then((snapshot) => {
+            const el = snapshot.data();
+            // if you have elements in firestore with no likes property
+            if (!el.likes) {
+                el.likes = 0;
+            }
+            // increment the likes
+            if (increment) {
+                el.likes++;
+            }
+            else {
+                el.likes--;
+            }
+            // do the update
+            firestore.collection("Events")
+                .doc(id).update(el).then((ret) => {
+                    // return events using shared method that adds __id
+                    getEvents(req, res);
+                });
+        })
+        .catch(err => { console.log(err) });
+}
+
+// put because this is an update. Passes through to shared method.
+app.put('/event/like', (req, res) => {
+    changeLikes(req, res, req.body.id, true);
+});
+
+// Passes through to shared method.
+// Delete distinguishes this route from put above
+app.delete('/event/like', (req, res) => {
+    changeLikes(req, res, req.body.id, false);
+});
+
+// // Likes an event - in a real solution, this would update a cloud datastore.
+// // Currently this simply increments the like counter in the mock array in memory
+// // this will produce unexpected behavior in a stateless kubernetes cluster. 
+// app.post('/event/like', (req, res) => {
+//     console.log (req.body.id);
+//     var objIndex = mockEvents.events.findIndex((obj => obj.id == req.body.id));
+//     var likes = mockEvents.events[objIndex].likes;
+//     mockEvents.events[objIndex].likes = ++likes;
+//     res.json(mockEvents);
+// });
+
 app.use((err, req, res, next) => {
     console.error(err.stack);
     res.status(500).json({ message: err.message });
 });
 
-function getEvents(req, res) {
-    firestore.collection("Events").get()
-        .then((snapshot) => {
-            if (!snapshot.empty) {
-                const ret = { events: []};
-                snapshot.docs.forEach(element => {
-                    ret.events.push(element.data());
-                }, this);
-                console.log(ret);
-                res.json(ret);
-            } else {
-                 res.json(mockEvents);
-            }
-        })
-        .catch((err) => {
-            console.error('Error getting events', err);
-            res.json(mockEvents);
-        });
-};
+
 
 const PORT = 8082;
 const server = app.listen(PORT, () => {
